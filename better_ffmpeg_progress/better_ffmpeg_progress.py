@@ -27,8 +27,40 @@ class FfmpegProcess:
         self._can_get_duration = True
 
         try:
-            self._duration_secs = float(probe(self._filepath)["format"]["duration"])
-            print(f"The duration of {self._filepath} has been detected as {self._duration_secs} seconds.")
+            # check if file is .txt
+            if self._filepath.endswith(".txt"):
+                # load the txt and get all lines
+                with open(self._filepath, "r") as f:
+                    lines = f.readlines()
+
+                def ts_to_secs(ts):
+                    # convert timestamp HH:MM:SS.xxx to seconds
+                    h, m, s = ts.split(":")
+                    res = int(h) * 3600 + int(m) * 60 + float(s)
+                    return res
+
+                # loop through all lines
+                total_duration = 0
+                current_inpoint = None
+                current_outpoint = None
+                for line in lines:
+                    
+                    if line.startswith("inpoint"):
+                        current_inpoint = ts_to_secs(line.split(" ")[1].strip())
+                    elif line.startswith("outpoint"):
+                        current_outpoint = ts_to_secs(line.split(" ")[1].strip())
+                    
+                    if current_inpoint is not None and current_outpoint is not None:
+                        total_duration += current_outpoint - current_inpoint
+                        current_inpoint = None
+                        current_outpoint = None
+
+                self._duration_secs = total_duration
+
+            else:
+                self._duration_secs = float(probe(self._filepath)["format"]["duration"])
+
+            # print(f"The duration of {self._filepath} has been detected as {self._duration_secs} seconds.")
         except Exception:
             self._can_get_duration = False
 
@@ -55,7 +87,7 @@ class FfmpegProcess:
             process = subprocess.Popen(
                 self._ffmpeg_args, stdout=subprocess.PIPE, stderr=f
             )
-            print(f"Running: {' '.join(self._ffmpeg_args)}")
+            # print(f"Running: {' '.join(self._ffmpeg_args)}")
 
         if self._can_get_duration:
             progress_bar = tqdm(total=round(self._duration_secs, 1), unit="s", dynamic_ncols=True, leave=False)
